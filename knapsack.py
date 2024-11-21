@@ -93,56 +93,83 @@ def solve_knapsack_dp(n, capacity, values, weights):
     end_time = time.time()
     return total_value, end_time - start_time, solution
 
-# def solve_knapsack_fptas(n, capacity, values, weights, epsilon):
-#     start_time = time.time()
+def solve_knapsack_fptas(n, capacity, values, weights, epsilon):
     
-#     # Find maximum value
-#     max_value = max(values)
+    start_time = time.time()
+
+    try:
+        # Find maximum value
+        max_value = max(values)
+        
+        # Calculate scaling factor
+        k = (epsilon * max_value) / n
+        
+        if k == 0:
+            raise ValueError("Scaling factor too small, would cause division by zero")
+        
+        # Scale values
+        scaled_values = [max(1, int(v / k)) for v in values]
+          
+        # Maximum scaled value possible
+        max_scaled_value = sum(scaled_values)
+        
+        # DP table with scaled values
+        dp = [[float('inf')] * (max_scaled_value + 1) for _ in range(2)]
+        dp[0][0] = 0  # Base case: empty subset has zero weight
+
+        # Track decisions for solution reconstruction
+        decisions = [[0 for _ in range(max_scaled_value + 1)] for _ in range(n)]
+        
+        # Fill DP table - O(n * max_scaled_value) = O(n³/ε)
+        for i in range(n):
+            curr = i % 2
+            prev = (i - 1) % 2
+            
+            dp[curr][0] = 0
+            
+            for v in range(max_scaled_value + 1):
+                # Don't take item i
+                dp[curr][v] = dp[prev][v]
+                
+                # Try to take item i if possible
+                if scaled_values[i] <= v:
+                    weight_with_item = (dp[prev][v - scaled_values[i]] + weights[i])
+                    if weight_with_item <= capacity and weight_with_item < dp[curr][v]:
+                        dp[curr][v] = weight_with_item
+                        decisions[i][v] = 1
+        
+        # Find maximum scaled value achievable within capacity
+        opt_scaled_value = max_scaled_value
+        final_row = (n - 1) % 2
+        while opt_scaled_value >= 0 and dp[final_row][opt_scaled_value] == float('inf'):
+            opt_scaled_value -= 1
+            
+        if opt_scaled_value < 0:
+            raise ValueError("No feasible solution found")
+        
+        # Reconstruct solution
+        solution = [0] * n
+        remaining_value = opt_scaled_value
+        
+        for i in range(n-1, -1, -1):
+            if decisions[i][remaining_value]:
+                solution[i] = 1
+                remaining_value -= scaled_values[i]
+        
+        # Calculate actual (unscaled) value and verify solution
+        total_value = sum(values[i] for i in range(n) if solution[i])
+        total_weight = sum(weights[i] for i in range(n) if solution[i])
+        
+        # Verify capacity constraint
+        if total_weight > capacity:
+            raise ValueError("Solution exceeds capacity")
+        
+        end_time = time.time()
+        return total_value, end_time - start_time, solution        
     
-#     # Calculate scaling factor
-#     k = epsilon * max_value / n
-    
-#     # Scale values
-#     scaled_values = [int(v / k) for v in values]
-    
-#     # Maximum scaled value possible
-#     max_scaled_value = sum(scaled_values)
-    
-#     # DP table with scaled values
-#     dp = [[float('inf')] * (max_scaled_value + 1) for _ in range(n + 1)]
-#     dp[0][0] = 0
-    
-#     # Fill DP table
-#     for i in range(1, n + 1):
-#         dp[i][0] = 0
-#         for v in range(max_scaled_value + 1):
-#             if scaled_values[i-1] <= v:
-#                 dp[i][v] = min(dp[i-1][v], 
-#                              dp[i-1][v-scaled_values[i-1]] + weights[i-1])
-#             else:
-#                 dp[i][v] = dp[i-1][v]
-    
-#     # Find maximum value that fits in capacity
-#     opt_scaled_value = 0
-#     for v in range(max_scaled_value, -1, -1):
-#         if dp[n][v] <= capacity:
-#             opt_scaled_value = v
-#             break
-    
-#     # Reconstruct solution
-#     solution = [0] * n
-#     remaining_value = opt_scaled_value
-#     for i in range(n, 0, -1):
-#         if remaining_value >= scaled_values[i-1] and \
-#            dp[i][remaining_value] == dp[i-1][remaining_value-scaled_values[i-1]] + weights[i-1]:
-#             solution[i-1] = 1
-#             remaining_value -= scaled_values[i-1]
-    
-#     # Calculate actual value
-#     actual_value = sum(values[i] for i in range(n) if solution[i] == 1)
-    
-#     end_time = time.time()
-#     return actual_value, end_time - start_time, solution
+    except Exception as e:
+        print(f"Error in FPTAS solution: {str(e)}")
+        return None, time.time() - start_time, None
 
 def evaluate_instance(filename):
     # Read instance
@@ -169,19 +196,20 @@ def evaluate_instance(filename):
         print("DP solution exceeded available memory")
         results['DP'] = {'value': None, 'time': None, 'solution': None}
 
-    # # Solve using FPTAS with different epsilon values
-    # epsilons = [10, 1, 0.1, 0.01]
-    # results['fptas'] = {}
+    # Solve using FPTAS with different epsilon values
+    epsilons = [10, 1, 0.1, 0.01]
+    results['FPTAS'] = {}
     
-    # for eps in epsilons:
-    #     print(f"Solving with FPTAS (ε={eps})...")
-    #     fptas_value, fptas_time, fptas_sol = solve_knapsack_fptas(n, capacity, values, weights, eps/100)  # Convert to decimal
-    #     opt_gap = (opt_value - fptas_value) / opt_value * 100 if opt_value else 0
-    #     results['fptas'][eps] = {
-    #         'value': fptas_value,
-    #         'time': fptas_time,
-    #         'gap': opt_gap
-    #     }
+    for eps in epsilons:
+        print(f"Solving with FPTAS (ε={eps})...")
+        fptas_value, fptas_time, fptas_sol = solve_knapsack_fptas(n, capacity, values, weights, eps)  # Convert to decimal
+
+        if fptas_value is not None:
+            # Calculate gap from optimal (BLP) solution
+            opt_gap = (results['BinaryLP']['value'] - fptas_value) / results['BinaryLP']['value'] * 100
+            results['FPTAS'][eps] = {'value': fptas_value, 'time': fptas_time, 'solution': fptas_sol, 'gap': opt_gap}
+        else:
+            results['FPTAS'][eps] = {'value': None, 'time': fptas_time, 'solution': None, 'gap': None}
     
     return results
 
@@ -202,9 +230,9 @@ if __name__ == "__main__":
     else:
         print("DP solution failed.")
     
-    # print("\nFPTAS Solutions:")
-    # for eps in [10, 1, 0.1, 0.01]:
-    #     print(f"\nε = {eps}:")
-    #     print(f"Value: {results['fptas'][eps]['value']}")
-    #     print(f"Time: {results['fptas'][eps]['time']:.3f} seconds")
-    #     print(f"Gap: {results['fptas'][eps]['gap']:.2f}%")
+    print("\nFPTAS Solutions:")
+    for eps in [10, 1, 0.1, 0.01]:
+        print(f"\nε = {eps}:")
+        print(f"Value: {results['FPTAS'][eps]['value']}")
+        print(f"Time: {results['FPTAS'][eps]['time']:.3f} seconds")
+        print(f"Gap: {results['FPTAS'][eps]['gap']:.2f}%")
