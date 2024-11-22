@@ -38,60 +38,60 @@ def solve_knapsack_BLP(n, capacity, values, weights):
     else:
         return None, end_time - start_time, None
 
-def solve_knapsack_dp(n, capacity, values, weights):
-    start_time = time.time()
+# def solve_knapsack_dp(n, capacity, values, weights):
+#     start_time = time.time()
     
-    # Initialize DP table
-    dp = [[0 for _ in range(capacity + 1)] for _ in range(2)]
+#     # Initialize DP table
+#     dp = [[0 for _ in range(capacity + 1)] for _ in range(2)]
 
-    # Keep track of decisions for solution reconstruction
-    decisions = [[0 for _ in range(capacity + 1)] for _ in range(n)]
+#     # Keep track of decisions for solution reconstruction
+#     decisions = [[0 for _ in range(capacity + 1)] for _ in range(n)]
     
-    # Fill DP table
-    for i in range(n):
+#     # Fill DP table
+#     for i in range(n):
         
-        curr = i % 2
-        prev = (i-1) % 2
+#         curr = i % 2
+#         prev = (i-1) % 2
         
-        for w in range(capacity + 1):
-            if i == 0:
-                # Handle first item separately
-                if weights[i] <= w:
-                    dp[curr][w] = values[i]
-                    decisions[i][w] = 1
-            else:
-               # Don't take item i
-                dp[curr][w] = dp[prev][w]
+#         for w in range(capacity + 1):
+#             if i == 0:
+#                 # Handle first item separately
+#                 if weights[i] <= w:
+#                     dp[curr][w] = values[i]
+#                     decisions[i][w] = 1
+#             else:
+#                # Don't take item i
+#                 dp[curr][w] = dp[prev][w]
 
-                # Check if we can take item i
-                if weights[i] <= w:
-                    # Value with current item
-                    val_with_item = values[i] + dp[prev][w - weights[i]]
+#                 # Check if we can take item i
+#                 if weights[i] <= w:
+#                     # Value with current item
+#                     val_with_item = values[i] + dp[prev][w - weights[i]]
                     
-                    # Take item if it gives better value
-                    if val_with_item > dp[curr][w]:
-                        dp[curr][w] = val_with_item
-                        decisions[i][w] = 1
+#                     # Take item if it gives better value
+#                     if val_with_item > dp[curr][w]:
+#                         dp[curr][w] = val_with_item
+#                         decisions[i][w] = 1
 
-    # Reconstruct solution
-    solution = [0] * n
-    remaining_capacity = capacity
+#     # Reconstruct solution
+#     solution = [0] * n
+#     remaining_capacity = capacity
 
-    # Start from last item
-    for i in range(n-1, -1, -1):
-        if decisions[i][remaining_capacity]:
-            solution[i] = 1
-            remaining_capacity -= weights[i]
+#     # Start from last item
+#     for i in range(n-1, -1, -1):
+#         if decisions[i][remaining_capacity]:
+#             solution[i] = 1
+#             remaining_capacity -= weights[i]
 
-    # Verify solution feasibility
-    total_weight = sum(weights[i] for i in range(n) if solution[i])
-    if total_weight > capacity:
-        raise ValueError("Solution exceeds capacity")
+#     # Verify solution feasibility
+#     total_weight = sum(weights[i] for i in range(n) if solution[i])
+#     if total_weight > capacity:
+#         raise ValueError("Solution exceeds capacity")
     
-    total_value = sum(values[i] for i in range(n) if solution[i])
+#     total_value = sum(values[i] for i in range(n) if solution[i])
     
-    end_time = time.time()
-    return total_value, end_time - start_time, solution
+#     end_time = time.time()
+#     return total_value, end_time - start_time, solution
 
 def solve_knapsack_fptas(n, capacity, values, weights, epsilon):
     
@@ -104,14 +104,18 @@ def solve_knapsack_fptas(n, capacity, values, weights, epsilon):
         # Calculate scaling factor
         k = (epsilon * max_value) / n
         
-        if k == 0:
-            raise ValueError("Scaling factor too small, would cause division by zero")
-        
+        # Add debug prints
+        print(f"\nDebug Info for ε = {epsilon}:")
+        print(f"max_value: {max_value}")
+        print(f"k: {k}")
+
         # Scale values
-        scaled_values = [max(1, int(v / k)) for v in values]
-          
+        scaled_values = [int(v / k) for v in values]
         # Maximum scaled value possible
         max_scaled_value = sum(scaled_values)
+
+        print(f"Scaled values range: {min(scaled_values)} to {max(scaled_values)}")
+        print(f"Sum of scaled values: {max_scaled_value}")
         
         # DP table with scaled values
         dp = [[float('inf')] * (max_scaled_value + 1) for _ in range(2)]
@@ -124,29 +128,40 @@ def solve_knapsack_fptas(n, capacity, values, weights, epsilon):
         for i in range(n):
             curr = i % 2
             prev = (i - 1) % 2
-            
-            dp[curr][0] = 0
-            
+                        
             for v in range(max_scaled_value + 1):
                 # Don't take item i
                 dp[curr][v] = dp[prev][v]
-                
+
+            # Handle first item separately
+            if i == 0 and weights[i] <= capacity:
+                dp[curr][scaled_values[i]] = weights[i]
+                decisions[i][scaled_values[i]] = 1                
+            
                 # Try to take item i if possible
+            for v in range(max_scaled_value + 1):                
                 if scaled_values[i] <= v:
-                    weight_with_item = (dp[prev][v - scaled_values[i]] + weights[i])
-                    if weight_with_item <= capacity and weight_with_item < dp[curr][v]:
-                        dp[curr][v] = weight_with_item
-                        decisions[i][v] = 1
+                    prev_v = v - scaled_values[i]
+                    # Feasibility check
+                    if dp[prev][prev_v] != float('inf'):
+                        new_weight = dp[prev][prev_v] + weights[i]
+                        if new_weight <= capacity and new_weight < dp[curr][v]:
+                            dp[curr][v] = new_weight
+                            decisions[i][v] = 1
         
         # Find maximum scaled value achievable within capacity
-        opt_scaled_value = max_scaled_value
         final_row = (n - 1) % 2
-        while opt_scaled_value >= 0 and dp[final_row][opt_scaled_value] == float('inf'):
-            opt_scaled_value -= 1
-            
-        if opt_scaled_value < 0:
-            raise ValueError("No feasible solution found")
+        feasible_values = [v for v in range(max_scaled_value + 1) if dp[final_row][v] != float('inf')]
+        print(f"Number of feasible scaled values: {len(feasible_values)}")
+        if feasible_values:
+            print(f"Range of feasible values: {min(feasible_values)} to {max(feasible_values)}")
         
+        if not feasible_values:
+            raise ValueError('No feasible solution found.')
+
+        # Find maximum scaled value achievable within capacity
+        opt_scaled_value = max_scaled_value
+               
         # Reconstruct solution
         solution = [0] * n
         remaining_value = opt_scaled_value
@@ -182,19 +197,19 @@ def evaluate_instance(filename):
     opt_value, gurobi_time, gurobi_sol = solve_knapsack_BLP(n, capacity, values, weights)
     results['BinaryLP'] = {'value': opt_value, 'time': gurobi_time, 'solution': gurobi_sol}
     
-    # Solve using Dynamic Programming
-    print("Solving with Dynamic Programming...")
-    try: 
-        dp_value, dp_time, dp_sol = solve_knapsack_dp(n, capacity, values, weights)
-        results['DP'] = {'value': dp_value, 'time': dp_time, 'solution': dp_sol}
+    # # Solve using Dynamic Programming
+    # print("Solving with Dynamic Programming...")
+    # try: 
+    #     dp_value, dp_time, dp_sol = solve_knapsack_dp(n, capacity, values, weights)
+    #     results['DP'] = {'value': dp_value, 'time': dp_time, 'solution': dp_sol}
     
-    except ValueError as e:
-        print(f"Error in DP solution: {e}")
-        results['DP'] = {'value': None, 'time': None, 'solution': None}
+    # except ValueError as e:
+    #     print(f"Error in DP solution: {e}")
+    #     results['DP'] = {'value': None, 'time': None, 'solution': None}
 
-    except MemoryError:
-        print("DP solution exceeded available memory")
-        results['DP'] = {'value': None, 'time': None, 'solution': None}
+    # except MemoryError:
+    #     print("DP solution exceeded available memory")
+    #     results['DP'] = {'value': None, 'time': None, 'solution': None}
 
     # Solve using FPTAS with different epsilon values
     epsilons = [10, 1, 0.1, 0.01]
@@ -223,12 +238,12 @@ if __name__ == "__main__":
     print(f"Value: {results['BinaryLP']['value']}")
     print(f"Time: {results['BinaryLP']['time']:.3f} seconds")
     
-    print("\nDynamic Programming Solution:")
-    if results['DP']['value'] is not None:
-        print(f"Value: {results['DP']['value']}")
-        print(f"Time: {results['DP']['time']:.3f} seconds")
-    else:
-        print("DP solution failed.")
+    # print("\nDynamic Programming Solution:")
+    # if results['DP']['value'] is not None:
+    #     print(f"Value: {results['DP']['value']}")
+    #     print(f"Time: {results['DP']['time']:.3f} seconds")
+    # else:
+    #     print("DP solution failed.")
     
     print("\nFPTAS Solutions:")
     for eps in [10, 1, 0.1, 0.01]:
