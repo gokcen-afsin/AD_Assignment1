@@ -99,55 +99,53 @@ def solve_knapsack_fptas(n, capacity, values, weights, epsilon):
     
     start_time = time.time()
 
-    try:
-        # Find maximum value
-        max_value = max(values)
+    # Find maximum value
+    max_value = max(values)
         
-        # Calculate scaling factor
-        k = (epsilon * max_value) / n
+     # Calculate scaling factor
+    k = (epsilon * max_value) / n
     
-        # Scale values
-        scaled_values = [int(v / k) for v in values]
-        # Maximum scaled value possible
-        max_scaled_value = n*max(scaled_values)
+    # Scale values
+    scaled_values = [int(v / k) for v in values]
+    # Maximum scaled value possible
+    max_scaled_value = n*max(scaled_values)
         
-        # Step 1: Creating F(p)
-        f = [[float('inf')] *(max_scaled_value + 1) for _ in range(n)]
-        decisions = [[0] *(max_scaled_value + 1) for _ in range(n)]
+    # Step 1: Creating F(p)
+    f = [[float('inf')] *(max_scaled_value + 1) for _ in range(n)]
+    decisions = [[0] *(max_scaled_value + 1) for _ in range(n)]
 
+    for p in range(max_scaled_value + 1):
+        if p == 0:
+            f[0][p] = 0
+        if p == scaled_values[0]:
+            f[0][p] = weights[0]
+            decisions[0][p] = 1  
+
+    # Step 2: 
+    for j in range(1,n):
         for p in range(max_scaled_value + 1):
-            if p == 0:
-                f[0][p] = 0
-            if p == scaled_values[0]:
-                f[0][p] = weights[0]
-                decisions[0][p] = 1  
-
-        # Step 2: 
-        for j in range(1,n):
-            for p in range(max_scaled_value + 1):
-                if p-scaled_values[j] >= 0:
-                    added_value = weights[j] + f[j][p-scaled_values[j]]
-                    if added_value < f[j-1][p]:
-                        f[j][p] = added_value
-                        decisions[j][p] = 1
+            if p-scaled_values[j] >= 0:
+                added_value = weights[j] + f[j][p-scaled_values[j]]
+                if added_value < f[j-1][p]:
+                    f[j][p] = added_value
+                    decisions[j][p] = 1
         
-        feasible_values = [0 for _ in range(max_scaled_value + 1)]
-        solution = [0 for _ in range(n)]
-        # Step 3
-        for j in range(n):
-            for p in range(max_scaled_value + 1):
-                if f[j][p] <= capacity:
-                    feasible_values[p] = p
-        total_value = max(values)
-        for j in range(n):
-            solution[j] = decisions[total_value][j]
-        end_time = time.time()
-        return total_value, end_time - start_time, solution        
-    
-    except Exception as e:
-        print(f"Error in FPTAS solution: {str(e)}")
-        return None, time.time() - start_time, None
+    feasible_values = [0 for _ in range(max_scaled_value + 1)]
+    solution = [0 for _ in range(n)]
+    # Step 3
+    for j in range(n):
+        for p in range(max_scaled_value + 1):
+            if f[j][p] <= capacity:
+                feasible_values[p] = p
+    total_value = max(values)
 
+    for j in range(n):
+        solution[j] = decisions[total_value][j]
+
+    end_time = time.time()
+    
+    return total_value, end_time - start_time, solution        
+    
 def evaluate_instance(filename):
     # Read instance
     n, capacity, values, weights = read_knapsack_instance(filename)
@@ -191,28 +189,28 @@ def evaluate_instance(filename):
     return results
 
 # Example usage
-if __name__ == "__main__":
-    results = evaluate_instance("instances/instance1.txt")
+
+results = evaluate_instance("instances/instance1.txt")
     
-    # # Print results
-    # print("\nResults:")
-    # print("BLP Solution:")
-    # print(f"Value: {results['BinaryLP']['value']}")
-    # print(f"Time: {results['BinaryLP']['time']:.3f} seconds")
+# # Print results
+# print("\nResults:")
+# print("BLP Solution:")
+# print(f"Value: {results['BinaryLP']['value']}")
+# print(f"Time: {results['BinaryLP']['time']:.3f} seconds")
     
-    # print("\nDynamic Programming Solution:")
-    # if results['DP']['value'] is not None:
-    #     print(f"Value: {results['DP']['value']}")
-    #     print(f"Time: {results['DP']['time']:.3f} seconds")
-    # else:
-    #     print("DP solution failed.")
+# print("\nDynamic Programming Solution:")
+# if results['DP']['value'] is not None:
+#     print(f"Value: {results['DP']['value']}")
+#     print(f"Time: {results['DP']['time']:.3f} seconds")
+# else:
+#     print("DP solution failed.")
     
-    print("\nFPTAS Solutions:")
-    for eps in [10, 1, 0.1, 0.01]:
-        print(f"\nε = {eps}:")
-        if results['FPTAS'][eps]['time'] == None and results['FPTAS'][eps]['gap'] == None:
-            print(f"Value: {results['FPTAS'][eps]['value']}")
-        else:
-            print(f"Value: {results['FPTAS'][eps]['value']}")
-            print(f"Time: {results['FPTAS'][eps]['time']} seconds")
-            print(f"Gap: {results['FPTAS'][eps]['gap']}%")
+print("\nFPTAS Solutions:")
+for eps in [10, 1, 0.1, 0.01]:
+    print(f"\nε = {eps}:")
+    if results['FPTAS'][eps]['time'] == None and results['FPTAS'][eps]['gap'] == None:
+        print(f"Value: {results['FPTAS'][eps]['value']}")
+    else:
+        print(f"Value: {results['FPTAS'][eps]['value']}")
+        print(f"Time: {results['FPTAS'][eps]['time']} seconds")
+        print(f"Gap: {results['FPTAS'][eps]['gap']}%")

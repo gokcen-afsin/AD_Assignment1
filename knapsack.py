@@ -153,11 +153,13 @@ def solve_knapsack_fptas(n, capacity, values, weights, epsilon):
                         decisions[i][v] = 1
                 
             for v in range(max_scaled_value + 1):
-                # weights_per_value[v] = decisions[i][v] * weights[i]
+                # weights_per_value[v] = decisions[i][v] * weights[i] (maybe not necassary? included in dp)
                 if dp[n][v] <= capacity:
                     feasibility[v] = v
             total_value = max(feasibility)
-            solution[i] = decisions[i][total_value]              
+            solution[i] = decisions[i][total_value]  
+
+            # THE COMMENTED OUT SECTION IS THE CHAT GPT PART            
                 # if scaled_values[i] <= v:
                 #     prev_v = v - scaled_values[i]
                 #     # Feasibility check
