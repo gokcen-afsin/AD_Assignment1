@@ -2,6 +2,7 @@ import gurobipy as gp
 from gurobipy import GRB
 import time
 import math
+import numpy as np
 
 def read_knapsack_instance(filename):
     with open(filename, 'r') as f:
@@ -96,116 +97,83 @@ def solve_knapsack_dp(n, capacity, values, weights):
     return total_value, end_time - start_time, solution
 
 def solve_knapsack_fptas(n, capacity, values, weights, epsilon):
-    
     start_time = time.time()
 
-    try:
-        # Find maximum value
-        max_value = max(values)
+   # Find maximum value
+    max_value = max(values)
         
-        # Calculate scaling factor
-        k = (epsilon * max_value) / n
-        
-        # Add debug prints
-        print(f"\nDebug Info for ε = {epsilon}:")
-        print(f"max_value: {max_value}")
-        print(f"k: {k}")
+    # Calculate scaling factor
+    k = (epsilon * max_value) / n
 
-        # Scale values
-        scaled_values = [int(v / k) for v in values]
-        # Maximum scaled value possible
-        max_scaled_value = n*max(scaled_values)
-        # Feasibility check
-        weights_per_value = [0 for _ in range(max_scaled_value + 1)]
-        feasibility = [0 for _ in range(max_scaled_value + 1)]
-        solution = [0 for _ in range(n)]
-        print(f"Scaled values range: {min(scaled_values)} to {max(scaled_values)}")
-        print(f"n*C_max: {max_scaled_value}")
-        
-        # DP table with scaled values
-        dp = [[float('inf')] for _ in range(max_scaled_value + 1) for _ in range(n + 1)]
-        dp[0][0] = 0  # Base case: empty subset has zero weight
+    # Scale values
+    scaled_values = [int(v / k) for v in values]
 
-        # Track decisions for solution reconstruction
-        decisions = [[0 for _ in range(max_scaled_value + 1)] for _ in range(n)]
- 
-        # Fill DP table - O(n * max_scaled_value) = O(n³/ε)
-        for i in range(n):
-            curr = i % 2
-            prev = (i - 1) % 2
-                        
-            for v in range(max_scaled_value + 1):
-                # Don't take item i
-                dp[curr][v] = dp[prev][v]
+    # Maximum scaled value possible
+    max_scaled_value = n*max(scaled_values)
 
-            # Handle first item separately
-            if i == 0 and weights[i] <= capacity:
-                dp[curr][scaled_values[i]] = weights[i]
-                decisions[i][scaled_values[i]] = 1                
-            
-
-                # Try to take item i if possible
-            for v in range(max_scaled_value + 1):
-                if v-scaled_values[i] >= 0:    
-                    additem_value = weights[i] + dp[curr][v-scaled_values[i]]
-                    if additem_value < dp[curr][v]:
-                        dp[curr][v] = additem_value
-                        decisions[i][v] = 1
-                
-            for v in range(max_scaled_value + 1):
-                # weights_per_value[v] = decisions[i][v] * weights[i] (maybe not necassary? included in dp)
-                if dp[n][v] <= capacity:
-                    feasibility[v] = v
-            total_value = max(feasibility)
-            solution[i] = decisions[i][total_value]  
-
-            # THE COMMENTED OUT SECTION IS THE CHAT GPT PART            
-                # if scaled_values[i] <= v:
-                #     prev_v = v - scaled_values[i]
-                #     # Feasibility check
-                #     if dp[prev][prev_v] != float('inf'):
-                #         new_weight = dp[prev][prev_v] + weights[i]
-                #         if new_weight <= capacity and new_weight < dp[curr][v]:
-                #             dp[curr][v] = new_weight
-                #             decisions[i][v] = 1
-        
-        # # Find maximum scaled value achievable within capacity
-        # final_row = (n - 1) % 2
-        # feasible_values = [v for v in range(max_scaled_value + 1) if dp[final_row][v] != float('inf')]
-        # print(f"Number of feasible scaled values: {len(feasible_values)}")
-        # if feasible_values:
-        #     print(f"Range of feasible values: {min(feasible_values)} to {max(feasible_values)}")
-        
-        # if not feasible_values:
-        #     raise ValueError('No feasible solution found.')
-
-        # # Find maximum scaled value achievable within capacity
-        # opt_scaled_value = max_scaled_value
-               
-        # # Reconstruct solution
-        # solution = [0] * n
-        # remaining_value = opt_scaled_value
-        
-        # for i in range(n-1, -1, -1):
-        #     if decisions[i][remaining_value]:
-        #         solution[i] = 1
-        #         remaining_value -= scaled_values[i]
-        
-        # # Calculate actual (unscaled) value and verify solution
-        # total_value = sum(values[i] for i in range(n) if solution[i])
-        # total_weight = sum(weights[i] for i in range(n) if solution[i])
-        
-        
-        # # Verify capacity constraint
-        # if total_weight > capacity:
-        #     raise ValueError("Solution exceeds capacity")
-        
-        end_time = time.time()
-        return total_value, end_time - start_time, solution        
+    # Initialize DP table
     
-    except Exception as e:
-        print(f"Error in FPTAS solution: {str(e)}")
-        return None, time.time() - start_time, None
+    dp = np.full((n, max_scaled_value + 1), np.inf, dtype=np.float32)
+    dp[0, 0] = 0  # Base case: empty subset has zero weight
+    print(f"The matrix is of dimensions:{max_scaled_value} by {n}")
+    # Keep track of decisions for solution reconstruction
+    decisions = [[0 for _ in range(max_scaled_value + 1)] for _ in range(n)]
+    
+    # Fill DP table
+    for i in range(n):
+        
+        curr = i
+        prev = i - 1
+        
+        for p in range(max_scaled_value + 1):
+            if i == 0:
+                # Handle first item separately
+                if scaled_values[i] <= p:
+                    dp[curr][p] = weights[i]
+                    decisions[i][p] = 1
+            else:
+               # Don't take item i
+                dp[curr][p] = dp[prev][p]
+
+                # Check if we can take item i
+                if scaled_values[i] <= p:
+                    # Value with current item
+                    val_with_item = weights[i] + dp[prev][p - scaled_values[i]]
+                    
+                    # Take item if it gives better value
+                    if val_with_item < dp[curr][p]:
+                        dp[curr][p] = val_with_item
+                        decisions[i][p] = 1
+
+    # Reconstruct solution
+    solution = [0] * n
+    feasible_p = [0] * (max_scaled_value + 1)
+    for p in range(max_scaled_value + 1):
+        if dp[n-1][p] <= capacity:
+            feasible_p[p] = p
+
+    max_p = max(feasible_p)
+
+    # Start from last item
+    for i in range(n-1, -1, -1):
+        if decisions[i][max_p]:
+            solution[i] = 1
+            p -= scaled_values[i]
+
+
+    # Verify solution feasibility
+    total_weight = sum(weights[i] for i in range(n) if solution[i])
+    if total_weight > capacity:
+        raise ValueError("Solution exceeds capacity")
+    
+    total_value = sum(values[i] for i in range(n) if solution[i])
+    
+
+    end_time = time.time()
+
+    return total_value, end_time - start_time, solution        
+    
+
 
 def evaluate_instance(filename):
     # Read instance
@@ -232,6 +200,7 @@ def evaluate_instance(filename):
         print("DP solution exceeded available memory")
         results['DP'] = {'value': None, 'time': None, 'solution': None}
 
+    
     # Solve using FPTAS with different epsilon values
     epsilons = [10, 1, 0.1, 0.01]
     results['FPTAS'] = {}
@@ -249,7 +218,7 @@ def evaluate_instance(filename):
     
     return results
 
-# Example usage
+
 if __name__ == "__main__":
     results = evaluate_instance("instances/instance1.txt")
     
