@@ -179,7 +179,6 @@ def solve_knapsack_fptas(n, capacity, values, weights, epsilon):
     return total_value, end_time - start_time, solution        
     
 
-
 def evaluate_instance(filename):
     # Read instance
     n, capacity, values, weights = read_knapsack_instance(filename)
@@ -191,19 +190,19 @@ def evaluate_instance(filename):
     opt_value, gurobi_time, gurobi_sol = solve_knapsack_BLP(n, capacity, values, weights)
     results['BinaryLP'] = {'value': opt_value, 'time': gurobi_time, 'solution': gurobi_sol}
     
-    # # Solve using Dynamic Programming
-    # print("Solving with Dynamic Programming...")
-    # try: 
-    #     dp_value, dp_time, dp_sol = solve_knapsack_dp(n, capacity, values, weights)
-    #     results['DP'] = {'value': dp_value, 'time': dp_time, 'solution': dp_sol}
+    # Solve using Dynamic Programming
+    print("Solving with Dynamic Programming...")
+    try: 
+        dp_value, dp_time, dp_sol = solve_knapsack_dp(n, capacity, values, weights)
+        results['DP'] = {'value': dp_value, 'time': dp_time, 'solution': dp_sol}
     
-    # except ValueError as e:
-    #     print(f"Error in DP solution: {e}")
-    #     results['DP'] = {'value': None, 'time': None, 'solution': None}
+    except ValueError as e:
+        print(f"Error in DP solution: {e}")
+        results['DP'] = {'value': None, 'time': None, 'solution': None}
 
-    # except MemoryError:
-    #     print("DP solution exceeded available memory")
-    #     results['DP'] = {'value': None, 'time': None, 'solution': None}
+    except MemoryError:
+        print("DP solution exceeded available memory")
+        results['DP'] = {'value': None, 'time': None, 'solution': None}
 
     
     # Solve using FPTAS with different epsilon values
@@ -233,13 +232,13 @@ if __name__ == "__main__":
     print(f"Value: {results['BinaryLP']['value']}")
     print(f"Time: {results['BinaryLP']['time']:.3f} seconds")
     
-    # print("\nDynamic Programming Solution:")
-    # if results['DP']['value'] is not None:
-    #     print(f"Value: {results['DP']['value']}")
+    print("\nDynamic Programming Solution:")
+    if results['DP']['value'] is not None:
+        print(f"Value: {results['DP']['value']}")
 
-    #     print(f"Time: {results['DP']['time']:.3f} seconds")
-    # else:
-    #     print("DP solution failed.")
+        print(f"Time: {results['DP']['time']:.3f} seconds")
+    else:
+        print("DP solution failed.")
     
     print("\nFPTAS Solutions:")
     for eps in [0.1]: #,0.1, 0.01]:
