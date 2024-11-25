@@ -115,10 +115,13 @@ def solve_knapsack_fptas(n, capacity, values, weights, epsilon):
     
     dp = np.full((n, max_scaled_value + 1), np.inf, dtype=np.float32)
     dp[0, 0] = 0  # Base case: empty subset has zero weight
-    print(f"The matrix is of dimensions:{max_scaled_value} by {n}")
+
+    print(f"The matrix is of dimensions:{max_scaled_value} by {n}") # If the dimensions are less than the optimal value it will always pick the max(p)
+    
     # Keep track of decisions for solution reconstruction
-    #decisions = [[0 for _ in range(max_scaled_value + 1)] for _ in range(n)]
+    # Previous which was more memory intensive: decisions = [[0 for _ in range(max_scaled_value + 1)] for _ in range(n)]
     decisions = np.zeros((n, max_scaled_value + 1), dtype=np.int8)
+    
     # Fill DP table
     for i in range(n):
         
