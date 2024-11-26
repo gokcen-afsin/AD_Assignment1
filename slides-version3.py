@@ -43,41 +43,28 @@ def solve_knapsack_BLP(n, capacity, values, weights):
 def solve_knapsack_dp(n, capacity, values, weights):
     start_time = time.time()
     
-    # Use 1D array instead of 2D: we only need to keep track of the current state
-    # This array represents v_k(θ) for the current k we're processing
+    # Initialize 1D DP table
     dp = [0] * (capacity + 1)
     
-    # We still need to track decisions for backtracking
-    # Keep this 2D since we need all decisions for the solution reconstruction
-    decisions = [[False for _ in range(capacity + 1)] for _ in range(n + 1)]
+    # Handle first item separately
+    for w in range(weights[0], capacity + 1):
+        dp[w] = values[0]
     
-    # Initialize v_1(θ) as shown in slides
-    # Process first item separately
-    for theta in range(weights[0], capacity + 1):
-        dp[theta] = values[0]
-        decisions[1][theta] = True
+    # Main DP loop
+    for i in range(1, n):
+        # Forward iteration
+        for w in range(weights[i], capacity + 1):  # Changed to forward iteration
+            new_val = dp[w - weights[i]] + values[i]
+            if new_val > dp[w]:
+                dp[w] = new_val
     
-    # Main DP loop implementing v_k+1(θ) = max{v_k(θ), v_k(θ - a_k+1) + c_k+1}
-    # Process each item after the first one
-    for k in range(1, n):
-        # Process capacities in reverse to avoid overwriting values we still need
-        for theta in range(capacity, weights[k]-1, -1):
-            # Check if taking the current item gives better value
-            value_with_item = dp[theta - weights[k]] + values[k]
-            if value_with_item > dp[theta]:
-                dp[theta] = value_with_item
-                decisions[k+1][theta] = True
-            # If we don't take the item, dp[theta] keeps its current value
-    
-    # Reconstruct solution using the decisions table
+    # Build solution
     solution = [0] * n
-    current_capacity = capacity
-    
-    # Backtrack through decisions to build solution
-    for k in range(n, 0, -1):
-        if decisions[k][current_capacity]:
-            solution[k-1] = 1
-            current_capacity -= weights[k-1]
+    w = capacity
+    for i in range(n-1, -1, -1):
+        if w >= weights[i] and dp[w] == dp[w-weights[i]] + values[i]:
+            solution[i] = 1
+            w -= weights[i]
     
     return dp[capacity], time.time() - start_time, solution
 
@@ -92,32 +79,31 @@ def solve_knapsack_fptas(n, capacity, values, weights, epsilon):
     
     # Step 1: Scale values by K: ⌊c_j/K⌋
     scaled_values = [math.floor(v/K) for v in values]
-    max_scaled_profit = sum(scaled_values)  # Maximum possible profit after scaling
     
-    # Use 1D array for F_j(p) with rolling updates
-    # Initialize F_1(p) as per slides
-    F = [float('inf')] * (max_scaled_profit + 1)
-    F[0] = 0  # Base case
+    # Initialize F_1(p) as per slides using dictionary for sparse representation
+    F = {0: 0}  # Only store reachable profits to save memory
     
     # Initialize for first item
-    if scaled_values[0] >= 0:
+    if scaled_values[0] > 0:
         F[scaled_values[0]] = weights[0]
     
     # Step 2: Compute F_j+1(p) = min{F_j(p), a_j+1 + F_j(p - c_j+1)}
     for j in range(1, n):
-        # Process profits in reverse to avoid overwriting values we need
-        for p in range(max_scaled_profit, scaled_values[j]-1, -1):
-            # Try to include current item if possible
-            prev_profit = p - scaled_values[j]
-            if F[prev_profit] != float('inf'):
-                F[p] = min(F[p], weights[j] + F[prev_profit])
+        # Create new dictionary for current iteration
+        new_F = F.copy()
+        
+        # Process existing profits
+        for p in F:
+            new_p = p + scaled_values[j]
+            new_w = F[p] + weights[j]
+            
+            if new_w <= capacity:
+                new_F[new_p] = min(new_F.get(new_p, float('inf')), new_w)
+        
+        F = new_F
     
     # Find z* = max{p|F_n(p) ≤ b}
-    opt_scaled_value = 0
-    for p in range(max_scaled_profit, -1, -1):
-        if F[p] <= capacity:
-            opt_scaled_value = p
-            break
+    opt_scaled_value = max((p for p in F.keys() if F[p] <= capacity), default=0)
     
     # Convert back to original scale
     actual_value = opt_scaled_value * K
