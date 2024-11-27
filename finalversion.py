@@ -5,107 +5,106 @@ import math
 import numpy as np
 
 def read_knapsack_instance(filename):
-    #Read the instance from file.
+    # Read instance with n items, capacity b, values c_j, and weights a_j
     with open(filename, 'r') as f:
-        # number of items and knapsack capacity
         n, capacity = map(int, f.readline().split())
-        # item values
-        values = list(map(int, f.readline().split()))
-        # item weights
-        weights = list(map(int, f.readline().split()))
+        values = list(map(int, f.readline().split()))   
+        weights = list(map(int, f.readline().split())) 
     return n, capacity, values, weights
 
 def solve_knapsack_BLP(n, capacity, values, weights):
+    # Binary LP formulation
     start_time = time.time()
-    
-    # Initialize Gurobi model with parameters for exact solution
     model = gp.Model("knapsack")
-    model.setParam('TimeLimit', 900)  # 15 minutes timeout
-    model.setParam('MIPGap', 0.0)     # Require optimal solution
-    model.setParam('OutputFlag', 0) 
+    model.setParam('TimeLimit', 900)  # time limit
+    model.setParam('MIPGap', 0.0)
+    model.setParam('OutputFlag', 0)
     
-    # Create binary variables: x[i] = 1 if item i is selected, 0 otherwise
+    # Decision variables x_j ∈ {0,1}
     x = model.addVars(n, vtype=GRB.BINARY, name="x")
     
-    # Objective: maximize total value
+    # Objective: maximize Σ c_j·x_j
     model.setObjective(gp.quicksum(values[i] * x[i] for i in range(n)), GRB.MAXIMIZE)
     
-    # Constraint: knapsack weight capacity
+    # capacity constraint: Σ a_j·x_j ≤ b
     model.addConstr(gp.quicksum(weights[i] * x[i] for i in range(n)) <= capacity)
     
-    # Solve the model
     model.optimize()
-    
-    # return objective value
     solution = [int(x[i].x) for i in range(n)]
     return model.objVal, time.time() - start_time, solution
 
 def solve_knapsack_dp(n, capacity, values, weights):
+    # v_k(θ) dynamic programming approach
     start_time = time.time()
     
-    # Initialize 2D DP table
-    # dp[i][w] represents the maximum value achievable using first i items and capacity w
+    # Initialize v_k(θ) table as array [k][θ]
     dp = [[0 for _ in range(capacity + 1)] for _ in range(n + 1)]
     
-    # Fill DP table
-    for i in range(1, n + 1):
-        for w in range(capacity + 1):
-            if weights[i-1] <= w:
-                # We can include item i-1
-                # Compare value with and without including current item
-                dp[i][w] = max(values[i-1] + dp[i-1][w-weights[i-1]], dp[i-1][w])
-            else:
-                # Can't include item i-1, take value without it
-                dp[i][w] = dp[i-1][w]
+    # Step 1: Initialize v_1(θ) for first item
+    # v_1(θ) = 0 if θ < a_1, c_1 if θ ≥ a_1
+    for w in range(capacity + 1):
+        if weights[0] <= w:
+            dp[1][w] = values[0]
     
-    # Reconstruct solution
-    solution = [0] * n
-    w = capacity
-    for i in range(n, 0, -1):
-        if dp[i][w] != dp[i-1][w]:
-            solution[i-1] = 1
-            w -= weights[i-1]
+    # Step 2: Compute v_(k+1)(θ) using below recurrence
+    # v_(k+1)(θ) = max{v_k(θ), v_k(θ - a_(k+1)) + c_(k+1)}
+    for k in range(1, n):
+        for theta in range(capacity + 1):
+            exclude_item = dp[k][theta]  # v_k(θ)
+            include_item = 0
+            
+            if weights[k] <= theta:
+                # include the item if its weight ≤ remaining capacity
+                include_item = dp[k][theta - weights[k]] + values[k]  # v_k(θ - a_(k+1)) + c_(k+1)
+            
+            dp[k+1][theta] = max(exclude_item, include_item)
+    
+    # Step 3: Reconstruct solution with backtracking
+    # p_k(θ) decisions - TRUE if item k is chosen
+    solution = [0] * n  # p_k(θ) values
+    remaining_capacity = capacity
+    
+    for k in range(n, 0, -1):
+        # Check if item k was included in optimal solution
+        if dp[k][remaining_capacity] != dp[k-1][remaining_capacity]:
+            solution[k-1] = 1  # p_k(θ) = TRUE
+            remaining_capacity -= weights[k-1]
     
     return dp[n][capacity], time.time() - start_time, solution
 
 def solve_knapsack_fptas(n, capacity, values, weights, epsilon):
     start_time = time.time()
     
-    # Find c_max = max{c_i}
+    # Step 1: Find c_max = max{c_i}
     c_max = max(values)
     
-    # Define K = εc_max/n as per theorem
+    # Define set K = εc_max/n 
     K = (epsilon * c_max) / n
     
-    # Step 1: Scale values by K: ⌊c_j/K⌋
+    # Step 1: Scale values by ⌊c_j/K⌋
     scaled_values = [math.floor(v/K) for v in values]
     
-    # Initialize F_1(p) as per slides using dictionary for sparse representation
-    F = {0: 0}  # Only store reachable profits to save memory
+    # Use dictionary for sparse F_j(p) representation
+    F = {0: 0}  # F_1(p) initialization
     
-    # Initialize for first item
+    # Initialize F_1(p) as per slides
     if scaled_values[0] > 0:
         F[scaled_values[0]] = weights[0]
     
     # Step 2: Compute F_j+1(p) = min{F_j(p), a_j+1 + F_j(p - c_j+1)}
     for j in range(1, n):
-        # Create new dictionary for current iteration
         new_F = F.copy()
-        
-        # Process existing profits
         for p in F:
             new_p = p + scaled_values[j]
             new_w = F[p] + weights[j]
-            
             if new_w <= capacity:
                 new_F[new_p] = min(new_F.get(new_p, float('inf')), new_w)
-        
         F = new_F
     
-    # Find z* = max{p|F_n(p) ≤ b}
+    # Step 3: Find z* = max{p|F_n(p) ≤ b}
     opt_scaled_value = max((p for p in F.keys() if F[p] <= capacity), default=0)
     
-    # Convert back to original scale
+    # Convert scaled solution back to original values
     actual_value = opt_scaled_value * K
     
     return actual_value, time.time() - start_time, None
